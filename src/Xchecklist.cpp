@@ -14,7 +14,7 @@
 //
 // *********************************************************
 
-#define VERSION_NUMBER "1.52 build " __DATE__ " " __TIME__
+#define VERSION_NUMBER "1.53 build " __DATE__ " " __TIME__
 
 #include "XPLMPlugin.h"
 #include "XPLMDisplay.h"
@@ -511,7 +511,7 @@ bool save_prefs()
     int widget_to_far_right, widget_to_far_left, widget_to_far_up, widget_to_far_down;
     XPLMGetScreenSize(&screen_w, &screen_h);
     xcDebug("Xchecklist: XPLMGetScreenSize  screen_w = %d  screen_h = %d\n", screen_w, screen_h);
-    xcDebug("Xchecklist: Checklist widget window position widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 botton = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
+    xcDebug("Xchecklist: Checklist widget window position1 widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 botton = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
 
     if (widget_win_pos_y1 > screen_w) {
         xcDebug("Xchecklist: Widget Checklist to far to the right of the screen.\n");
@@ -620,7 +620,7 @@ bool save_prefs()
         <<state[VOICE]<<" "<<state[AUTO_HIDE]<<" "<<state[SHOW_WIDGET]<<" "<<state[SHOW_GUI]<<std::endl;
     fout.close();
     xcDebug("\nXchecklist: prefs file found, Saving these values.\n");
-    xcDebug("Xchecklist: Checklist widget window position widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 bottom = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
+    xcDebug("Xchecklist: Checklist widget window position2 widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 bottom = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
     xcDebug("Xchecklist: Checklist gui window position gui_win_pos_x1 left = %d gui_win_pos_x2 top = %d gui_win_pos_y1 right = %d gui_win_pos_y2 bottom = %d\n", gui_win_pos_x1, gui_win_pos_x2, gui_win_pos_y1, gui_win_pos_y2);
     xcDebug("Xchecklist: TRANSLUCENT: %d \n", state[TRANSLUCENT]);
     xcDebug("Xchecklist: SHOW_CHECKLIST: %d\n", state[SHOW_CHECKLIST]);
@@ -664,7 +664,7 @@ bool init_setup()
 	//Read the rest of setup
         fin>>state[TRANSLUCENT]>>state[SHOW_CHECKLIST]>>state[COPILOT_ON]>>state[VOICE]>>state[AUTO_HIDE]>>state[SHOW_WIDGET]>>state[SHOW_GUI];
         xcDebug("\nXchecklist: During Startup inital prefs file found, using values found.\n");
-        xcDebug("Xchecklist: Checklist widget window position widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 bottom = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
+        xcDebug("Xchecklist: Checklist widget window position3 widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 bottom = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
         xcDebug("Xchecklist: Checklist gui window position gui_win_pos_x1 left = %d gui_win_pos_x2 top = %d gui_win_pos_y1 right = %d gui_win_pos_y2 bottom = %d\n", gui_win_pos_x1, gui_win_pos_x2, gui_win_pos_y1, gui_win_pos_y2);
         xcDebug("Xchecklist: TRANSLUCENT: %d \n", state[TRANSLUCENT]);
         xcDebug("Xchecklist: SHOW_CHECKLIST: %d\n", state[SHOW_CHECKLIST]);
@@ -812,8 +812,11 @@ bool toggle_gui()
             was_popped_out = 0;
         }
         if (!is_popped_out) {
+            xcDebug("Xchecklist: toggle_gui() !is_popped_out\n");
             XPLMSetWindowGeometryOS_ptr(xcvr_g_window, left, top, right, bottom);
-            XPLMSetWindowIsVisible(xcvr_g_window,1);
+            if (state[SHOW_GUI]) {
+                XPLMSetWindowIsVisible(xcvr_g_window,1);
+            }
         }
         xcDebug("Xchecklist: toggle_gui() Not XPLMGetWindowIsVisible XPLMGetWindowGeometry left = %d top = %d right = %d bottom = %d\n", left, top, right, bottom);
     }
@@ -846,6 +849,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, int inMsg, void * inP
                 xcDebug("Xchecklist: inMsg == XPLM_MSG_SCENERY_LOADED\n");
                 if (xcvr_g_window == nullptr)
                 {
+                    xcDebug("Xchecklist: xcvr_create_gui_window() in if(inMsg == XPLM_MSG_SCENERY_LOADED)\n");
                     xcvr_create_gui_window();
                 }
             }
@@ -863,6 +867,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, int inMsg, void * inP
                 {
                     xcvr_g_window = NULL;
                 }
+                xcDebug("Xchecklist: xcvr_create_gui_window() in if(inMsg == XPLM_MSG_ENTERED_VR)\n");
                 xcvr_create_gui_window();
             }
         }
@@ -873,7 +878,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, int inMsg, void * inP
 
 void xcvr_create_gui_window() {
     int vr_is_enabled = isVREnabled();
-    xcDebug("Xchecklist:In xcvr_create_gui_window() function vr_is_enabled = %d\n", vr_is_enabled);
+    xcDebug("Xchecklist: In xcvr_create_gui_window() function vr_is_enabled = %d\n", vr_is_enabled);
 
     if (xcvr_g_window==NULL) {
         int xcvr_global_desktop_bounds[4]; // left, top, right, bottom
@@ -1051,6 +1056,7 @@ void xCheckListMenuHandler(void * inMenuRef, void * inItemRef)
             mouse_down_check_item = 0;
             mouse_down_next = 0;
             if (state[SHOW_GUI]) {
+                xcDebug("Xchecklist: xcvr_create_gui_window() in if(((intptr_t)inMenuRef == 0) && ((intptr_t) inItemRef != 0))\n");
                 xcvr_create_gui_window();
             }
         }
@@ -1273,6 +1279,20 @@ int	xSetupHandler(XPWidgetMessage  inMessage, XPWidgetID  inWidget, intptr_t  in
                         }
                     }
 
+                    if (!state[SHOW_GUI]) {
+                        if (XPLMGetWindowIsVisible(xcvr_g_window)) {
+                            XPLMSetWindowIsVisible(xcvr_g_window,0);
+                        }
+                    }
+                    if (state[SHOW_GUI]) {
+                        if (!XPLMGetWindowIsVisible(xcvr_g_window)) {
+                            xcDebug("Xchecklist: xSetupHandler() if (!XPLMGetWindowIsVisible(xcvr_g_window))\n");
+                            XPLMSetWindowIsVisible(xcvr_g_window,1);
+                        } else {
+                            xcDebug("Xchecklist: xSetupHandler() if (XPLMGetWindowIsVisible(xcvr_g_window))\n");
+                        }
+                    }
+
                     XPHideWidget(setupWidget);
                 }
         }
@@ -1368,6 +1388,18 @@ bool create_checklist(unsigned int size, const char *title,
     //printf("***********************************************\n");
     //printf("Checklist width: %d (%d, %d)\n", win_width, label_width, suffix_width);
     //printf("***********************************************\n");
+    // If using sw_show for GUI then create new checklist
+    if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI])) {
+        xcDebug("Xchecklist: create_checklist() if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI]))\n");
+        if (xcvr_g_window) {
+            if (XPLMGetWindowIsVisible(xcvr_g_window)) {
+
+            } else {
+                xcDebug("Xchecklist: create_checklist() toggle_gui()\n");
+                toggle_gui();
+            }
+        }
+    }
 
     if (XPLMSetWindowTitle_ptr) {
         xcvr_title = title;
@@ -1418,6 +1450,7 @@ bool create_checklist(unsigned int size, const char *title,
     int win_left, win_top, win_right, win_bottom;
 
     if (XPLMGetWindowGeometryOS_ptr && XPLMSetWindowGeometryOS_ptr && XPLMSetWindowGeometryVR_ptr) {
+        xcDebug("Xchecklist: in create_checklist() if (XPLMGetWindowGeometryOS_ptr && XPLMSetWindowGeometryOS_ptr && XPLMSetWindowGeometryVR_ptr)\n");
         if (is_popped_out) {
             XPLMGetWindowGeometryOS_ptr(xcvr_g_window, &win_left, &win_top, &win_right, &win_bottom);
             win_right = win_left + xcvr_width;
@@ -1427,10 +1460,9 @@ bool create_checklist(unsigned int size, const char *title,
             #else
             XPLMSetWindowGeometryOS_ptr(xcvr_g_window, win_left, win_top, win_right, win_bottom);
             #endif
-        }
-
-        else {
+        } else {
             XPLMGetWindowGeometry(xcvr_g_window, &win_left, &win_top, &win_right, &win_bottom);
+            xcDebug("Xchecklist: create_checklist() XPLMGetWindowGeometry3 win_left = %d win_top = %d win_right = %d win_bottom = %d\n", win_left, win_top, win_right, win_bottom);
             win_right = win_left + xcvr_width;
             win_bottom = win_top - xcvr_height;
             if (isVREnabled()) {
@@ -1838,6 +1870,7 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
             }
             if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET])) {
                 if (xcvr_g_window == NULL) {
+                    xcDebug("Xchecklist: xcvr_create_gui_window() in if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET]))\n");
                     xcvr_create_gui_window();
                 }else{
                     if (!XPLMGetWindowIsVisible(xcvr_g_window) &&
@@ -1871,7 +1904,8 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
             }
             if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET])) {
                 if (xcvr_g_window == NULL) {
-                  xcvr_create_gui_window();
+                    xcDebug("Xchecklist: xcvr_create_gui_window() in if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET]))\n");
+                    xcvr_create_gui_window();
                 }else{
                     if (!XPLMGetWindowIsVisible(xcvr_g_window) && 
 			    XPLMGetWindowGeometryOS_ptr && XPLMSetWindowPositioningMode_ptr) {
@@ -1894,7 +1928,8 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
             }
             if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET])) {
                 if (xcvr_g_window == NULL) {
-                  xcvr_create_gui_window();
+                    xcDebug("Xchecklist: xcvr_create_gui_window() in if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET]))\n");
+                    xcvr_create_gui_window();
                 }else{
                     if (!XPLMGetWindowIsVisible(xcvr_g_window) && 
 			    XPLMGetWindowGeometryOS_ptr && XPLMSetWindowPositioningMode_ptr) {
@@ -1933,7 +1968,8 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
             }
             if (state[SHOW_GUI]) {
                 if (xcvr_g_window == NULL) {
-                  xcvr_create_gui_window();
+                    xcDebug("Xchecklist: xcvr_create_gui_window() in if (state[SHOW_GUI])\n");
+                    xcvr_create_gui_window();
                 }
                 if (!XPLMGetWindowIsVisible(xcvr_g_window) &&
                     XPLMGetWindowGeometryOS_ptr && XPLMSetWindowPositioningMode_ptr) {
