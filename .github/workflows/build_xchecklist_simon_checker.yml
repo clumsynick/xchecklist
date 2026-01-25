@@ -105,8 +105,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew install bison
-        echo "/usr/local/opt/bison/bin" >> $GITHUB_PATH
-        export LDFLAGS="-L/usr/local/opt/bison/lib"
+        echo "PATH=$(brew --prefix bison)/bin:$PATH" >> $GITHUB_ENV
         brew install flex
         echo "/usr/local/opt/flex/bin" >> $GITHUB_PATH
         export LDFLAGS="-L/usr/local/opt/flex/lib"
