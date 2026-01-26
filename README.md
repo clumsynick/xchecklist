@@ -21,6 +21,7 @@ Alow you to have a interactive checklist in your 2d or VR cockpit
     choco install git
     choco install cmake --installargs '"ADD_CMAKE_TO_PATH=System"'
     choco install mingw --version 8.1.0
+    choco install winflexbison3
     ```
 
     You can also install the same programs manually if you prefer.
@@ -43,10 +44,10 @@ Alow you to have a interactive checklist in your 2d or VR cockpit
 4. Configure and build checker and copy it into the appropriate directory:
 
    ```
-   rm -r build/*
-   cmake -S ./checker -B ./build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-   cmake --build ./build
-   cp ./build/win_checker_64bit.exe ./Xchecklist/Checker/
+   rm -r build
+   cmake -G "MinGW Makefiles" -S .\checker -B .\build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build .\build
+   cp .\build\win_checker_64bit.exe .\Xchecklist\Checker\
    ```    
 
 
