@@ -111,3 +111,5 @@ Ver. 1.51 Fixing coloured strings handling problem.
 Ver. 1.52 Fixed issue with how check & next item worked and improved the @ silence function.
 
 Ver. 1.53 Trying to reach feature parity for the GUI comparied to the widget including sw_show.
+
+Ver. 1.54b1 Modern UI preview. Replaced the checklist renderer and settings dialog with a responsive Dear ImGui interface. Added scalable X-Plane fonts, resizable category navigation, automatic scrolling to the active item, category completion tracking, manual category completion, persistent completed categories during direct navigation, and configurable auto-hide behavior. Preserved the legacy renderer as a build option. Deferred UI initialization to avoid Vulkan loading conflicts and disabled the unsafe legacy Linux speech helper. Added native Linux, Windows, and universal Intel/Apple Silicon macOS CI builds.

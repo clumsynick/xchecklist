@@ -22,11 +22,15 @@ bool init_speech()
 #if APL
   return init_simon("simon_mac");
 #elif LIN
-  #if defined(__x86_64__)
-    return init_simon("simon_lin64");
-  #else
-    return init_simon("simon_lin32");
-  #endif
+  /*
+   * The legacy helper is launched with fork() and then performs substantial
+   * work before exec().  X-Plane 12 is multithreaded by this point, so the
+   * child can inherit a locked libc state and deadlock both initialization
+   * and the simulator's main thread.  Keep speech inactive until the Linux
+   * backend is replaced by an asynchronous implementation.
+   */
+  xcDebug("Xchecklist: legacy Linux speech helper disabled (unsafe after fork)\n");
+  return false;
 #endif
   return active;
 }
@@ -63,7 +67,6 @@ bool spoken(float elapsed)
   }
   return whispered();
 }
-
 
 
 
