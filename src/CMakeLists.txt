@@ -6,7 +6,7 @@
 #   
 
 cmake_minimum_required(VERSION 3.16)
-project(Xchecklist VERSION 1.3.4 DESCRIPTION "Xchecklist X-Plane plugin")
+project(Xchecklist VERSION 1.5.4 DESCRIPTION "Xchecklist X-Plane plugin")
 
 option(XCHECKLIST_MODERN_UI "Build the Dear ImGui checklist interface" ON)
 
