@@ -24,7 +24,7 @@ namespace {
 bool g_initialized = false;
 float g_text_scale = 1.0f;
 float g_sidebar_width = 180.0f;
-bool g_settings_requested = false;
+bool g_settings_open = false;
 XPLMWindowID g_window = nullptr;
 ImFont* g_body_font = nullptr;
 ImFont* g_title_font = nullptr;
@@ -355,19 +355,14 @@ void draw_footer()
   }
 }
 
-void draw_settings_dialog()
+void draw_settings_page()
 {
-  if(g_settings_requested){
-    ImGui::OpenPopup("Settings");
-    g_settings_requested = false;
-  }
-
-  ImGui::SetNextWindowSize(ImVec2(430.0f, 0.0f), ImGuiCond_Appearing);
-  if(!ImGui::BeginPopupModal("Settings", nullptr,
-                             ImGuiWindowFlags_AlwaysAutoResize)){
-    return;
-  }
-
+  ImGui::PushFont(g_title_font, 21.0f * g_text_scale);
+  ImGui::TextUnformatted("Settings");
+  ImGui::PopFont();
+  ImGui::TextDisabled("Changes apply immediately and are saved when you close this page.");
+  ImGui::Spacing();
+  ImGui::BeginChild("##settings-page", ImVec2(0.0f, -56.0f), true);
   ImGui::TextDisabled("BEHAVIOR");
   bool show_checklist = modern_ui_show_checklist_enabled();
   if(ImGui::Checkbox("Open when a checklist is available", &show_checklist)){
@@ -404,19 +399,22 @@ void draw_settings_dialog()
 #else
   ImGui::TextDisabled("Voice prompts continue to use the platform speech backend.");
 #endif
-
+  ImGui::EndChild();
   ImGui::Spacing();
-  ImGui::Separator();
-  if(ImGui::Button("Save and close", ImVec2(-1.0f, 42.0f))){
+  if(ImGui::Button("Back to checklist", ImVec2(-1.0f, 44.0f))){
     save_ui_preferences();
     save_prefs();
-    ImGui::CloseCurrentPopup();
+    g_settings_open = false;
   }
-  ImGui::EndPopup();
 }
 
 void draw_content()
 {
+  if(g_settings_open){
+    draw_settings_page();
+    return;
+  }
+
   float available = ImGui::GetContentRegionAvail().x;
   if(available >= 620.0f){
     g_sidebar_width = std::clamp(g_sidebar_width, 150.0f,
@@ -431,7 +429,7 @@ void draw_content()
   ImGui::SameLine(ImGui::GetContentRegionMax().x - settings_width -
                   hide_width - ImGui::GetStyle().ItemSpacing.x);
   if(ImGui::SmallButton("Settings")){
-    g_settings_requested = true;
+    g_settings_open = true;
   }
   ImGui::SameLine();
   if(ImGui::SmallButton("Hide") && g_window){
@@ -464,7 +462,7 @@ void draw_content()
 
 void modern_ui_show_settings()
 {
-  g_settings_requested = true;
+  g_settings_open = true;
 }
 
 void xcvr_draw(XPLMWindowID window, void *refcon)
@@ -507,7 +505,6 @@ void xcvr_draw(XPLMWindowID window, void *refcon)
   ImGui::Begin("##xchecklist-modern", nullptr, flags);
   ImGui::PushFont(g_body_font, 16.0f * g_text_scale);
   draw_content();
-  draw_settings_dialog();
   ImGui::PopFont();
   ImGui::End();
   ImGui::Render();
