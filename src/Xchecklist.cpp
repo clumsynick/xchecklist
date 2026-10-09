@@ -321,10 +321,18 @@ PLUGIN_API int XPluginStart(
 
         XPLMAppendMenuItem(PluginMenu, "Open CheckList", (void *) "checklist", 1);
         XPLMAppendMenuSeparator(PluginMenu);
-        XPLMAppendMenuItem(PluginMenu, "Open Setup", (void *) "setup", 1);
+        XPLMAppendMenuItem(PluginMenu,
+#if XCHECKLIST_MODERN_UI
+                    "Settings",
+#else
+                    "Open Setup",
+#endif
+                    (void *) "setup", 1);
         XPLMAppendMenuItem(PluginMenu, "Reload", (void *) "reload", 1);
+#if !XCHECKLIST_MODERN_UI
         XPLMAppendMenuItem(PluginMenu, "Move Window Down", (void *) "window", 1);
         XPLMAppendMenuItem(PluginMenu, "Save Settings", (void *) "settings", 1);
+#endif
         XPLMAppendMenuItem(PluginMenu, "Create Dictionary", (void *) "dictionary", 1);
         if (VersionXP > 11200) {
             XPLMAppendMenuItem(PluginMenu, "Toggle GUI Checklist", (void *) "toggle", 1);
@@ -405,6 +413,16 @@ void modern_ui_set_auto_hide_enabled(bool enabled)
 {
   state[AUTO_HIDE] = enabled;
   save_prefs();
+}
+
+bool modern_ui_show_checklist_enabled()
+{
+  return state[SHOW_CHECKLIST];
+}
+
+void modern_ui_set_show_checklist_enabled(bool enabled)
+{
+  state[SHOW_CHECKLIST] = enabled;
 }
 #endif
 
@@ -1148,12 +1166,20 @@ void xCheckListMenuHandler(void * inMenuRef, void * inItemRef)
 
     }
     if (!strcmp((char *) inItemRef, "setup")){
+#if XCHECKLIST_MODERN_UI
+      if(xcvr_g_window == nullptr){
+        xcvr_create_gui_window();
+      }
+      XPLMSetWindowIsVisible(xcvr_g_window, 1);
+      modern_ui_show_settings();
+#else
       if (setupWidget == NULL){
         CreateSetupWidget(400, 550, 215, 250);	//left, top, right, bottom.
       }else{
         if(!XPIsWidgetVisible(setupWidget))
             XPShowWidget(setupWidget);
       }
+#endif
     }
     if (!strcmp((char *) inItemRef, "reload")){
       do_cleanup();

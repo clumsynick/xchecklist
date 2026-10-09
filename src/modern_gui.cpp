@@ -12,7 +12,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstdio>
+#include <fstream>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -22,6 +24,7 @@ namespace {
 bool g_initialized = false;
 float g_text_scale = 1.0f;
 float g_sidebar_width = 180.0f;
+bool g_settings_requested = false;
 XPLMWindowID g_window = nullptr;
 ImFont* g_body_font = nullptr;
 ImFont* g_title_font = nullptr;
@@ -46,6 +49,34 @@ desktop_bounds_t desktop_bounds()
     XPLMGetScreenSize(&bounds.right, &bounds.top);
   }
   return bounds;
+}
+
+void load_ui_preferences()
+{
+  char* path = pluginPath("Xchecklist-ui.prf");
+  if(!path){
+    return;
+  }
+  std::ifstream input(path);
+  if(input.is_open()){
+    input >> g_text_scale >> g_sidebar_width;
+    g_text_scale = std::clamp(g_text_scale, 0.85f, 2.0f);
+    g_sidebar_width = std::clamp(g_sidebar_width, 150.0f, 600.0f);
+  }
+  free(path);
+}
+
+void save_ui_preferences()
+{
+  char* path = pluginPath("Xchecklist-ui.prf");
+  if(!path){
+    return;
+  }
+  std::ofstream output(path);
+  if(output.is_open()){
+    output << g_text_scale << " " << g_sidebar_width << std::endl;
+  }
+  free(path);
 }
 
 void apply_style()
@@ -138,6 +169,7 @@ void ensure_initialized()
     g_title_font = g_body_font;
   }
   io.FontDefault = g_body_font;
+  load_ui_preferences();
   apply_style();
   ImGui_ImplOpenGL2_Init();
   g_last_frame = std::chrono::steady_clock::now();
@@ -323,6 +355,66 @@ void draw_footer()
   }
 }
 
+void draw_settings_dialog()
+{
+  if(g_settings_requested){
+    ImGui::OpenPopup("Settings");
+    g_settings_requested = false;
+  }
+
+  ImGui::SetNextWindowSize(ImVec2(430.0f, 0.0f), ImGuiCond_Appearing);
+  if(!ImGui::BeginPopupModal("Settings", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)){
+    return;
+  }
+
+  ImGui::TextDisabled("BEHAVIOR");
+  bool show_checklist = modern_ui_show_checklist_enabled();
+  if(ImGui::Checkbox("Open when a checklist is available", &show_checklist)){
+    modern_ui_set_show_checklist_enabled(show_checklist);
+  }
+  bool copilot = modern_ui_copilot_enabled();
+  if(ImGui::Checkbox("Enable copilot automation", &copilot)){
+    modern_ui_set_copilot_enabled(copilot);
+  }
+  bool auto_hide = modern_ui_auto_hide_enabled();
+  if(ImGui::Checkbox("Hide completed categories", &auto_hide)){
+    modern_ui_set_auto_hide_enabled(auto_hide);
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::TextDisabled("ACCESSIBILITY");
+  ImGui::TextUnformatted("Text size");
+  ImGui::SetNextItemWidth(-1.0f);
+  ImGui::SliderFloat("##settings-text-scale", &g_text_scale,
+                     0.85f, 2.0f, "%.2fx");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::TextDisabled("AUDIO");
+#if LIN
+  ImGui::BeginDisabled();
+  bool voice_available = false;
+  ImGui::Checkbox("Voice prompts", &voice_available);
+  ImGui::EndDisabled();
+  ImGui::TextDisabled("Unavailable while the legacy Linux speech helper is disabled.");
+#else
+  ImGui::TextDisabled("Voice prompts continue to use the platform speech backend.");
+#endif
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  if(ImGui::Button("Save and close", ImVec2(-1.0f, 42.0f))){
+    save_ui_preferences();
+    save_prefs();
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndPopup();
+}
+
 void draw_content()
 {
   float available = ImGui::GetContentRegionAvail().x;
@@ -334,7 +426,14 @@ void draw_content()
   }
   ImGui::BeginGroup();
   ImGui::TextDisabled("XCHECKLIST");
-  ImGui::SameLine(ImGui::GetContentRegionMax().x - 58.0f);
+  const float settings_width = ImGui::CalcTextSize("Settings").x + 16.0f;
+  const float hide_width = ImGui::CalcTextSize("Hide").x + 16.0f;
+  ImGui::SameLine(ImGui::GetContentRegionMax().x - settings_width -
+                  hide_width - ImGui::GetStyle().ItemSpacing.x);
+  if(ImGui::SmallButton("Settings")){
+    g_settings_requested = true;
+  }
+  ImGui::SameLine();
   if(ImGui::SmallButton("Hide") && g_window){
     XPLMSetWindowIsVisible(g_window, 0);
   }
@@ -362,6 +461,11 @@ void draw_content()
 }
 
 } // namespace
+
+void modern_ui_show_settings()
+{
+  g_settings_requested = true;
+}
 
 void xcvr_draw(XPLMWindowID window, void *refcon)
 {
@@ -403,6 +507,7 @@ void xcvr_draw(XPLMWindowID window, void *refcon)
   ImGui::Begin("##xchecklist-modern", nullptr, flags);
   ImGui::PushFont(g_body_font, 16.0f * g_text_scale);
   draw_content();
+  draw_settings_dialog();
   ImGui::PopFont();
   ImGui::End();
   ImGui::Render();
@@ -451,6 +556,7 @@ void xcvr_shutdown_ui()
   if(!g_initialized){
     return;
   }
+  save_ui_preferences();
   ImGui_ImplOpenGL2_Shutdown();
   ImGui::DestroyContext();
   g_initialized = false;

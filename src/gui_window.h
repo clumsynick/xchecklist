@@ -40,6 +40,9 @@ extern bool modern_ui_copilot_enabled();
 extern void modern_ui_set_copilot_enabled(bool enabled);
 extern bool modern_ui_auto_hide_enabled();
 extern void modern_ui_set_auto_hide_enabled(bool enabled);
+extern bool modern_ui_show_checklist_enabled();
+extern void modern_ui_set_show_checklist_enabled(bool enabled);
+extern void modern_ui_show_settings();
 #endif
 
 typedef struct{
