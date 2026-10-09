@@ -78,6 +78,9 @@ bool next_checklist(bool follow_sw_cont);
 // Returns true if on problems were encountered
 bool open_checklist(int number);
 
+//Mark the current checklist complete without waiting for its item conditions.
+bool complete_checklist();
+
 //Frontend informs us, that user has checked an item
 //  item is the index of checked item (provided by checklist_item_desc_t.index)
 //

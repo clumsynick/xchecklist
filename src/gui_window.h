@@ -3,6 +3,7 @@
 
 
 #include "interface.h"
+#include "XPLMDisplay.h"
 #include <vector>
 
 // Variables to be passed to VR window
@@ -30,6 +31,16 @@ extern int was_popped_out;
 extern bool isVREnabled();
 
 extern void put_xcvr_gui_window_in_front();
+
+#if XCHECKLIST_MODERN_UI
+extern int xcvr_handle_wheel(XPLMWindowID in_window_id, int x, int y,
+                             int wheel, int clicks, void *in_refcon);
+extern void xcvr_shutdown_ui();
+extern bool modern_ui_copilot_enabled();
+extern void modern_ui_set_copilot_enabled(bool enabled);
+extern bool modern_ui_auto_hide_enabled();
+extern void modern_ui_set_auto_hide_enabled(bool enabled);
+#endif
 
 typedef struct{
   char *str;

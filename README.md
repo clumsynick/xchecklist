@@ -13,6 +13,11 @@ Alow you to have a interactive checklist in your 2d or VR cockpit
 
 ## Building Xchecklist from source
 
+The modern checklist window is enabled by default and uses the vendored Dear
+ImGui sources in `third_party/imgui`. No additional GUI package or network
+download is required. To build the legacy renderer for comparison, configure
+with `-DXCHECKLIST_MODERN_UI=OFF`.
+
 ### On windows
 
 1.  Install required software using [Chocolatey](https://chocolatey.org/) using admin command prompt:
@@ -93,6 +98,17 @@ Alow you to have a interactive checklist in your 2d or VR cockpit
    cmake --build ./build
    cp ./build/lin_checker_64 ./Xchecklist/Checker/
    ```
+
+### On Fedora
+
+Install the build dependencies and build the plugin with:
+
+```sh
+sudo dnf install gcc gcc-c++ cmake ninja-build flex bison \
+  freeglut-devel libglvnd-devel openal-soft-devel speech-dispatcher-devel
+cmake -S ./src -B ./build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build ./build
+```
 
 
 

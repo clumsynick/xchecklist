@@ -71,6 +71,7 @@ class checklist_item{
   virtual bool show(bool &val){(void) val; return false;};
   virtual void reset(){};
   void setIndex(int i){index = i;};
+  int getIndex() const {return index;};
   bool item_done(){return (state == NEXT);};
   virtual bool check();
 
@@ -91,6 +92,7 @@ class checklist{
   int  get_width(){return (width > (true_width)) ? width : true_width;};
   bool activate(int index, bool force = false);
   bool item_checked(int item);
+  bool complete();
   bool do_processing(bool copilotOn);
   bool restart_checklist();
   bool activate_next_item(bool init = false);
@@ -128,6 +130,7 @@ class checklist_binder{
     bool prev_checklist();
     bool next_checklist(bool followSwCont);
     bool item_checked(int item);
+    bool complete_checklist();
     bool do_processing(bool visible, bool copilotOn);
     bool get_checklist_names(int *all_checklists, int *menu_size, constname_t *names[], int *indexes[]);
     bool free_checklist_names(int all_checklists, int menu_size, constname_t *names[], int *indexes[]);

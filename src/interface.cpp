@@ -70,6 +70,14 @@ bool open_checklist(int number)
   return binder->select_checklist((unsigned int) number);
 }
 
+bool complete_checklist()
+{
+  if(binder == NULL){
+    return false;
+  }
+  return binder->complete_checklist();
+}
+
 
 bool item_checked(int item)
 {
@@ -111,4 +119,3 @@ bool checklist_finished(bool *switchNext)
     }
     return binder->checklist_finished(switchNext);
 }
-

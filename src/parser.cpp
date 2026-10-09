@@ -709,6 +709,14 @@ bool checklist_binder::item_checked(int item)
   return checklists[current]->item_checked(item);
 }
 
+bool checklist_binder::complete_checklist()
+{
+  if((current < 0) || (static_cast<size_t>(current) >= checklists.size())){
+    return false;
+  }
+  return checklists[current]->complete();
+}
+
 show_item::show_item(dataref_t *d):dataref(d)
 {
   if(dataref != NULL){
@@ -952,7 +960,8 @@ bool checklist::activate_next_item(bool init)
 
 bool checklist::activate(int index, bool force)
 {
-  if(triggered()){
+  const bool resume_finished = finished && !force;
+  if(!resume_finished && triggered()){
     trigger_block = true;
     for(unsigned int i = 0; i < items.size(); ++i){
       items[i]->reset();
@@ -974,9 +983,31 @@ bool checklist::activate(int index, bool force)
   bool res = create_checklist(j, displaytext.c_str(), desc, width,
 		              true_width_label, true_width_suffix,
 			      index, force);
+  if(resume_finished){
+    for(int i = 0; i < j; ++i){
+      if(!desc[i].item_void){
+        ::check_item(i);
+      }
+    }
+  }
   delete [] desc;
-  activate_next_item(true);
+  if(!resume_finished){
+    activate_next_item(true);
+  }
   return res;
+}
+
+bool checklist::complete()
+{
+  finished = true;
+  current_item = -1;
+  continue_flag = false;
+  for(checklist_item* item : items){
+    if(item->getIndex() >= 0){
+      ::check_item(item->getIndex());
+    }
+  }
+  return true;
 }
 
 const std::string& checklist::get_name()const
@@ -1521,4 +1552,3 @@ void palette::get_colour(unsigned long index, float rgb[])
   rgb[1] = colours[index].g;
   rgb[2] = colours[index].b;
 }
-

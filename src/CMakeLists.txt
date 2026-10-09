@@ -5,8 +5,31 @@
 #     RelWithDebInfo and MinSizeRel. Default is Release.
 #   
 
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.16)
 project(Xchecklist VERSION 1.3.4 DESCRIPTION "Xchecklist X-Plane plugin")
+
+option(XCHECKLIST_MODERN_UI "Build the Dear ImGui checklist interface" ON)
+
+if (XCHECKLIST_MODERN_UI)
+    set(IMGUI_DIR "${CMAKE_SOURCE_DIR}/../third_party/imgui")
+
+    add_library(xchecklist_imgui STATIC
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp
+    )
+    target_include_directories(xchecklist_imgui PUBLIC
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
+    )
+    set_target_properties(xchecklist_imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(xchecklist_imgui PUBLIC XCHECKLIST_MODERN_UI=1)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(xchecklist_imgui PRIVATE -w)
+    endif ()
+endif ()
 
 # We will enable this when we have a SDK supporting arm
 # X-Plane supports OS X 11.0+, so this should ensure Xchecklist can run on
@@ -76,7 +99,13 @@ add_compile_options(-Wno-unused)
 add_compile_options(-O3 -fPIC)
 
 # X-Plane plugin
-list(APPEND XCHECKLIST_SRCS Xchecklist.cpp interface.cpp parser.cpp utils.cpp gui_window.cpp chkl.l chkl.y plugin_dl.c)
+list(APPEND XCHECKLIST_SRCS Xchecklist.cpp interface.cpp parser.cpp utils.cpp checklist_ui_model.cpp chkl.l chkl.y plugin_dl.c)
+
+if (XCHECKLIST_MODERN_UI)
+	list(APPEND XCHECKLIST_SRCS modern_gui.cpp)
+else ()
+	list(APPEND XCHECKLIST_SRCS gui_window.cpp)
+endif ()
 
 if (WIN32)
 	list(APPEND XCHECKLIST_SRCS speech_sapi.cpp)
@@ -101,6 +130,10 @@ message (STATUS "CMAKE_SOURCE_DIR = " )
 list(APPEND XCHECKLIST_SRCS ${BISON_Parser_OUTPUTS} ${FLEX_Scanner_OUTPUTS})
 
 add_library(Xchecklist SHARED ${XCHECKLIST_SRCS})
+
+if (XCHECKLIST_MODERN_UI)
+    target_link_libraries(Xchecklist xchecklist_imgui)
+endif ()
 
 target_compile_features(Xchecklist PUBLIC cxx_std_11)
 

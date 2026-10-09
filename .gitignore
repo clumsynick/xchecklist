@@ -87,6 +87,8 @@ build/
 .builds
 *.pidb
 *.log
+/Log.txt
+/debug.log
 *.scc
 
 # Visual C++ cache files

@@ -40,6 +40,7 @@
 #include "utils.h"
 #include "plugin_dl.h"
 #include "gui_window.h"
+#include "checklist_ui_model.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -384,6 +385,29 @@ bool isVREnabled()
   return XPLMGetDatai(g_vr_dref);
 }
 
+#if XCHECKLIST_MODERN_UI
+bool modern_ui_copilot_enabled()
+{
+  return state[COPILOT_ON];
+}
+
+void modern_ui_set_copilot_enabled(bool enabled)
+{
+  state[COPILOT_ON] = enabled;
+}
+
+bool modern_ui_auto_hide_enabled()
+{
+  return state[AUTO_HIDE];
+}
+
+void modern_ui_set_auto_hide_enabled(bool enabled)
+{
+  state[AUTO_HIDE] = enabled;
+  save_prefs();
+}
+#endif
+
 
 PLUGIN_API void	XPluginStop(void)
 {
@@ -391,6 +415,9 @@ PLUGIN_API void	XPluginStop(void)
         save_prefs();
         stop_checklists();
         do_cleanup();
+#if XCHECKLIST_MODERN_UI
+        xcvr_shutdown_ui();
+#endif
         XPLMUnregisterFlightLoopCallback(dataProcessingCallback, NULL);
         XPLMDestroyMenu(checklistsMenu);
         XPLMDestroyMenu(PluginMenu);
@@ -449,6 +476,9 @@ bool create_checklists_menu(void)
 bool init_checklists()
 {
   bool res = false;
+#if XCHECKLIST_MODERN_UI
+        g_checklist_ui_model.reset_completions();
+#endif
         char *clist = findChecklist();
         if(clist){
           res = start_checklists(clist, 0);
@@ -505,7 +535,7 @@ bool save_prefs()
   fout.open(prefs, std::ios::out);
   if(fout.is_open()){
     //Store prefs version first
-    fout<<"1"<<std::endl;
+    fout<<"2"<<std::endl;
     XPGetWidgetGeometry(xCheckListWidget, &widget_win_pos_x1, &widget_win_pos_x2, &widget_win_pos_y1, &widget_win_pos_y2);
     int screen_w, screen_h;
     int widget_to_far_right, widget_to_far_left, widget_to_far_up, widget_to_far_down;
@@ -649,8 +679,13 @@ bool init_setup()
   state[VOICE] = true;
   voice_state = true;
   state[AUTO_HIDE] = true;
+#if XCHECKLIST_MODERN_UI
+  state[SHOW_WIDGET] = false;
+  state[SHOW_GUI] = true;
+#else
   state[SHOW_WIDGET] = true;
   state[SHOW_GUI] = false;
+#endif
   prefs = pluginPath("Xchecklist.prf");
   if(try_open(prefs, fin)){
     //read new prefs from the fin
@@ -658,11 +693,18 @@ bool init_setup()
     fin>>version;
     switch(version){
       case 1:
+      case 2:
 	//Read the window position
     fin>>widget_win_pos_x1>>widget_win_pos_x2>>widget_win_pos_y1>>widget_win_pos_y2;
     fin>>gui_win_pos_x1>>gui_win_pos_x2>>gui_win_pos_y1>>gui_win_pos_y2;
 	//Read the rest of setup
         fin>>state[TRANSLUCENT]>>state[SHOW_CHECKLIST]>>state[COPILOT_ON]>>state[VOICE]>>state[AUTO_HIDE]>>state[SHOW_WIDGET]>>state[SHOW_GUI];
+#if XCHECKLIST_MODERN_UI
+        if(version == 1){
+          state[SHOW_WIDGET] = false;
+          state[SHOW_GUI] = true;
+        }
+#endif
         xcDebug("\nXchecklist: During Startup inital prefs file found, using values found.\n");
         xcDebug("Xchecklist: Checklist widget window position3 widget_win_pos_x1 left = %d widget_win_pos_x2 top = %d widget_win_pos_y1 right = %d widget_win_pos_y2 bottom = %d\n", widget_win_pos_x1, widget_win_pos_x2, widget_win_pos_y1, widget_win_pos_y2);
         xcDebug("Xchecklist: Checklist gui window position gui_win_pos_x1 left = %d gui_win_pos_x2 top = %d gui_win_pos_y1 right = %d gui_win_pos_y2 bottom = %d\n", gui_win_pos_x1, gui_win_pos_x2, gui_win_pos_y1, gui_win_pos_y2);
@@ -694,6 +736,10 @@ bool init_setup()
       for(size_t i = 0; i < SETUP_TEXT_ITEMS; ++i){
         readBoolean(fin, state[i]);
       }
+#if XCHECKLIST_MODERN_UI
+      state[SHOW_WIDGET] = false;
+      state[SHOW_GUI] = true;
+#endif
       fin.close();
       //resave the prefs in the new format
       save_prefs();
@@ -829,9 +875,8 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, int inMsg, void * inP
     (void) inFrom; // To get rid of warnings on unused variables
     if((inMsg == XPLM_MSG_PLANE_LOADED) && (inParam == 0))
     {
-        //user plane loaded / reloaded, initiate deferred start to avoid
-        //  race condition with plane's plugin creating custom datarefs
-        XPLMRegisterFlightLoopCallback(xCheckListDeferredInitNewAircraftFLCB, -1, NULL);
+        // The actual checklist initialization is scheduled after scenery has
+        // loaded, when the aircraft's custom datarefs are available.
         if(!init_done)
         {
             XPLMRegisterFlightLoopCallback(dataProcessingCallback, 0.1f, NULL);
@@ -842,18 +887,15 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, int inMsg, void * inP
     // so that VR will actually be available.
     if(inMsg == XPLM_MSG_SCENERY_LOADED)
     {
-        if (findChecklist())
-        {
-            if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI]))
-            {
-                xcDebug("Xchecklist: inMsg == XPLM_MSG_SCENERY_LOADED\n");
-                if (xcvr_g_window == nullptr)
-                {
-                    xcDebug("Xchecklist: xcvr_create_gui_window() in if(inMsg == XPLM_MSG_SCENERY_LOADED)\n");
-                    xcvr_create_gui_window();
-                }
-            }
-        }
+        // Creating an XPLM window from inside this notification can collide
+        // with X-Plane rebuilding its Vulkan render graph.  Let the already
+        // registered deferred flight-loop callback do all UI setup after this
+        // notification has returned.
+        xcDebug("Xchecklist: scenery loaded; scheduling checklist UI initialization\n");
+        XPLMUnregisterFlightLoopCallback(xCheckListDeferredInitNewAircraftFLCB,
+                                         NULL);
+        XPLMRegisterFlightLoopCallback(xCheckListDeferredInitNewAircraftFLCB,
+                                       -1, NULL);
     }
 
     #if XPLM301
@@ -921,11 +963,21 @@ void xcvr_create_gui_window() {
         }
         params.bottom = xcvr_global_desktop_bounds[1] + gui_top - h;
 
+#if XCHECKLIST_MODERN_UI
+        // Avoid touching the Vulkan/OpenGL bridge while scenery is loading.
+        // create_checklist() shows the window after deferred aircraft init.
+        params.visible = 0;
+#else
         params.visible = 1;
+#endif
         params.drawWindowFunc = xcvr_draw;
         params.handleMouseClickFunc = xcvr_handle_mouse;
         params.handleRightClickFunc = xcvr_dummy_mouse_handler;
+#if XCHECKLIST_MODERN_UI
+        params.handleMouseWheelFunc = xcvr_handle_wheel;
+#else
         params.handleMouseWheelFunc = xcvr_dummy_wheel_handler;
+#endif
         params.handleKeyFunc = xcvr_dummy_key_handler;
         params.handleCursorFunc = xcvr_dummy_cursor_status_handler;
         params.refcon = NULL;
@@ -937,6 +989,8 @@ void xcvr_create_gui_window() {
         }
 
         xcvr_g_window = XPLMCreateWindowEx(&params);
+        xcDebug("Xchecklist: GUI window created (initially visible = %d)\n",
+                params.visible);
         //printf("xcvr_g_window: %p\n", xcvr_g_window);
 
         if(XPLMSetWindowPositioningMode_ptr && XPLMSetWindowResizingLimits_ptr && XPLMSetWindowTitle_ptr){
@@ -967,14 +1021,25 @@ float xCheckListDeferredInitNewAircraftFLCB(float xCheckListelapsedMe, float xCh
     (void) xCheckListcounter; // To get rid of warnings on unused variables
     (void) xCheckListrefcon; // To get rid of warnings on unused variables
 
+    xcDebug("Xchecklist: deferred aircraft initialization started\n");
+
     if(!init_done){
+      xcDebug("Xchecklist: initializing voice backend\n");
       set_sound(state[VOICE]);
+      xcDebug("Xchecklist: voice backend initialization complete (active = %d)\n",
+              speech_active());
       voice_state = (state[VOICE]);
       init_done = true;
       // Causes XP9 to segfault!!!
       //XPLMRegisterFlightLoopCallback(dataProcessingCallback, 0.1f, NULL);
     }
-    
+
+    if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI]) &&
+        (xcvr_g_window == nullptr)) {
+      xcDebug("Xchecklist: deferred callback creating GUI window\n");
+      xcvr_create_gui_window();
+    }
+
     do_cleanup();
     init_checklists();
     // safe_window_defaults();
@@ -996,7 +1061,8 @@ float dataProcessingCallback(float inElapsed1, float inElapsed2, int cntr, void 
   }
 
   int visible;
-  if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET]) && (XPLMGetWindowIsVisible(xcvr_g_window))) {
+  if ((state[SHOW_GUI]) && (!state[SHOW_WIDGET]) && xcvr_g_window &&
+      XPLMGetWindowIsVisible(xcvr_g_window)) {
       visible = 1;
   }
   else {
@@ -1008,7 +1074,11 @@ float dataProcessingCallback(float inElapsed1, float inElapsed2, int cntr, void 
   //hide the widget only when changing the view to external
   if (external && (!prev_external_view)) {
       if (visible) {
-          XPHideWidget(xCheckListWidget);
+          if(state[SHOW_GUI] && !state[SHOW_WIDGET] && xcvr_g_window){
+            XPLMSetWindowIsVisible(xcvr_g_window, 0);
+          }else{
+            XPHideWidget(xCheckListWidget);
+          }
           visible = 0;
           restore_on_internal = true;
       }
@@ -1017,7 +1087,11 @@ float dataProcessingCallback(float inElapsed1, float inElapsed2, int cntr, void 
   //show only when back in internal views and we remember to (restore_on_internal).
   if ((!external) && prev_external_view) {
       if ((!visible) && restore_on_internal) {
-          XPShowWidget(xCheckListWidget);
+          if(state[SHOW_GUI] && !state[SHOW_WIDGET] && xcvr_g_window){
+            XPLMSetWindowIsVisible(xcvr_g_window, 1);
+          }else{
+            XPShowWidget(xCheckListWidget);
+          }
           visible = 1;
           restore_on_internal = false;
       }
@@ -1032,8 +1106,11 @@ float dataProcessingCallback(float inElapsed1, float inElapsed2, int cntr, void 
       if (switchNext) {
           next_checklist(true);
       } else if (hide_cntr > 30) {
-          XPHideWidget(xCheckListWidget);
-          toggle_gui();
+          if(state[SHOW_GUI] && !state[SHOW_WIDGET] && xcvr_g_window){
+            XPLMSetWindowIsVisible(xcvr_g_window, 0);
+          }else{
+            XPHideWidget(xCheckListWidget);
+          }
       }
   } else {
       hide_cntr = 0;
@@ -1392,12 +1469,12 @@ bool create_checklist(unsigned int size, const char *title,
     if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI])) {
         xcDebug("Xchecklist: create_checklist() if ((state[SHOW_CHECKLIST]) && (state[SHOW_GUI]))\n");
         if (xcvr_g_window) {
-            if (XPLMGetWindowIsVisible(xcvr_g_window)) {
-
-            } else {
+#if !XCHECKLIST_MODERN_UI
+            if (!XPLMGetWindowIsVisible(xcvr_g_window)) {
                 xcDebug("Xchecklist: create_checklist() toggle_gui()\n");
                 toggle_gui();
             }
+#endif
         }
     }
 
@@ -1405,11 +1482,32 @@ bool create_checklist(unsigned int size, const char *title,
         xcvr_title = title;
         XPLMSetWindowTitle_ptr(xcvr_g_window, xcvr_title);
     }
+#if XCHECKLIST_MODERN_UI
+    h = 560;
+#else
     h = (5+18+(size*20)) + 50;
+#endif
 
     restore_on_internal = false;
     if (checklists_count == -1) {
         create_checklists_menu();
+    }
+    g_checklist_ui_model.set_checklist(size, title, items, index, checklists_count);
+    constname_t *ui_names = NULL;
+    int *ui_indexes = NULL;
+    int ui_all = 0;
+    int ui_count = 0;
+    if(get_checklist_names(&ui_all, &ui_count, &ui_names, &ui_indexes)){
+      std::vector<std::string> names;
+      std::vector<int> indexes;
+      names.reserve(ui_count);
+      indexes.reserve(ui_count);
+      for(int ui_i = 0; ui_i < ui_count; ++ui_i){
+        names.push_back(ui_names[ui_i] ? ui_names[ui_i] : "Checklist");
+        indexes.push_back(ui_indexes[ui_i]);
+      }
+      g_checklist_ui_model.set_checklist_names(names, indexes);
+      free_checklist_names(ui_all, ui_count, &ui_names, &ui_indexes);
     }
 
     for(i = 0; i < xCheckListCopilotWidget.size(); ++i){
@@ -1442,14 +1540,33 @@ bool create_checklist(unsigned int size, const char *title,
         XPDestroyWidget(xCheckListWidget, 1);
     }
 
+#if XCHECKLIST_MODERN_UI
+    w = 760;
+#else
     w = win_width + 85; // original was 75
+#endif
     //printf("Final width = %d, label_width = %g, suffix_width = %g\n", w, label_width, suffix_width);
 
     xcvr_width = w;
     xcvr_height = h;
     int win_left, win_top, win_right, win_bottom;
+#if XCHECKLIST_MODERN_UI
+    static XPLMWindowID sized_modern_window = nullptr;
+    const bool initialize_window_geometry =
+      sized_modern_window != xcvr_g_window;
+    sized_modern_window = xcvr_g_window;
+    if (!initialize_window_geometry && xcvr_g_window) {
+        XPLMGetWindowGeometry(xcvr_g_window, &win_left, &win_top,
+                              &win_right, &win_bottom);
+        xcvr_width = w = win_right - win_left;
+        xcvr_height = h = win_top - win_bottom;
+    }
+#else
+    const bool initialize_window_geometry = true;
+#endif
 
-    if (XPLMGetWindowGeometryOS_ptr && XPLMSetWindowGeometryOS_ptr && XPLMSetWindowGeometryVR_ptr) {
+    if (initialize_window_geometry && XPLMGetWindowGeometryOS_ptr &&
+        XPLMSetWindowGeometryOS_ptr && XPLMSetWindowGeometryVR_ptr) {
         xcDebug("Xchecklist: in create_checklist() if (XPLMGetWindowGeometryOS_ptr && XPLMSetWindowGeometryOS_ptr && XPLMSetWindowGeometryVR_ptr)\n");
         if (is_popped_out) {
             XPLMGetWindowGeometryOS_ptr(xcvr_g_window, &win_left, &win_top, &win_right, &win_bottom);
@@ -1629,19 +1746,23 @@ bool create_checklist(unsigned int size, const char *title,
          if (!isVREnabled()) {
              // VR is unhappy with this so will only let it be used when not in VR.
              // In VR because the window is transparent there are no resize handles so it is not a issue there.
-             XPLMSetWindowResizingLimits_ptr(xcvr_g_window, win_right - win_left, win_top - win_bottom,  win_right - win_left, win_top - win_bottom);
+#if XCHECKLIST_MODERN_UI
+             XPLMSetWindowResizingLimits_ptr(xcvr_g_window, 480, 340, 1200, 1000);
+#else
+             XPLMSetWindowResizingLimits_ptr(xcvr_g_window, win_right - win_left, win_top - win_bottom, win_right - win_left, win_top - win_bottom);
+#endif
          }
-         if (is_popped_out) {
+         if (initialize_window_geometry && is_popped_out) {
              #if LIN
              XPLMSetWindowGeometryOS_ptr(xcvr_g_window, win_left + ((win_right - win_left) / 2), win_top - ((win_top - win_bottom) /2) + 14, win_right + ((win_right - win_left) / 2), win_bottom - ((win_top - win_bottom) /2) + 14);
              #else
              XPLMSetWindowGeometryOS_ptr(xcvr_g_window, win_left, win_top, win_right, win_bottom);
              #endif
          }
-         else {
+         else if (initialize_window_geometry) {
              XPLMSetWindowGeometry(xcvr_g_window, win_left, win_top, win_right, win_bottom);
-             XPLMBringWindowToFront(xcvr_g_window);
          }
+         XPLMBringWindowToFront(xcvr_g_window);
 
          mouse_down_hide = 0;
          mouse_down_previous = 0;
@@ -1682,6 +1803,16 @@ bool create_checklist(unsigned int size, const char *title,
          XPHideWidget(xCheckListWidget);
      }
 
+#if XCHECKLIST_MODERN_UI
+     if(xcvr_g_window){
+       bool show_modern = state[SHOW_GUI] &&
+                          (state[SHOW_CHECKLIST] || force_show);
+       xcDebug("Xchecklist: checklist initialized; modern window visible = %d\n",
+               show_modern ? 1 : 0);
+       XPLMSetWindowIsVisible(xcvr_g_window, show_modern ? 1 : 0);
+     }
+#endif
+
   return true;
 }
 
@@ -1692,6 +1823,7 @@ bool check_item(int itemNo)
     XPSetWidgetProperty(xCheckListCheckWidget[itemNo], xpProperty_ButtonState, 1);
     item_checked(itemNo);
     xcvr_item_checked[itemNo] = 1;
+    g_checklist_ui_model.set_checked(itemNo, true);
     return true;
   }
   return false;
@@ -1700,6 +1832,7 @@ bool check_item(int itemNo)
 bool activate_item(int itemNo)
 {
   checkable = itemNo;
+  g_checklist_ui_model.set_active(itemNo);
   //printf("Activating item %d\n", itemNo);
   return true;
 }
@@ -1942,6 +2075,13 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
 
             break;
         case RELOAD_CHECKLIST_COMMAND:
+#if XCHECKLIST_MODERN_UI
+            do_cleanup();
+            init_checklists();
+            if(state[SHOW_GUI] && xcvr_g_window){
+              XPLMSetWindowIsVisible(xcvr_g_window, 1);
+            }
+#else
             if (XPIsWidgetVisible(xCheckListWidget)) {
                 do_cleanup();
                 init_checklists();
@@ -1950,6 +2090,7 @@ int MyCommandCallback(XPLMCommandRef       inCommand,
                 XPSetWidgetProperty(setupCheckWidget[1], xpProperty_ButtonState, 1);
                 XPShowWidget(xCheckListWidget);
             }
+#endif
             break;
         case MOVE_CHECKLIST_COMMAND:
             XPUMoveWidgetBy(
@@ -1986,4 +2127,3 @@ int measure_string(const char *str, size_t len)
 {
 	return XPLMMeasureString(xplmFont_Proportional, str, len);
 }
-
